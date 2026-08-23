@@ -183,62 +183,66 @@ class ByteStreamer:
         current_part = 1
         location = await self.get_location(file_id)
 
-        try:
-            r = await media_session.send(
-                raw.functions.upload.GetFile(
-                    location=location, offset=offset, limit=chunk_size
-                ),
+        # ── 8-SLOT PARALLEL PIPELINE ──────────────────────────────────────────
+        # Keep 8 GetFile requests in-flight at all times. Each slot overlaps
+        # its network round-trip with 7 others, saturating the connection to
+        # Telegram's DC. Chunks are drained in order so the byte stream stays
+        # correct. Telegram's MTProto supports up to 512 concurrent requests;
+        # 8 is aggressive but well within limits for a single download.
+        PIPELINE_SIZE = 8
+        # ─────────────────────────────────────────────────────────────────────
+        from collections import deque
+
+        pending: deque = deque()
+
+        def _fetch(part_offset: int):
+            return asyncio.create_task(
+                media_session.send(
+                    raw.functions.upload.GetFile(
+                        location=location,
+                        offset=part_offset,
+                        limit=chunk_size,
+                    )
+                )
             )
-            if isinstance(r, raw.types.upload.File):
-                while True:
-                    chunk = r.bytes
-                    if not chunk:
-                        break
 
-                    # ── BUFFERING FIX: fire next fetch before yielding current ──
-                    # This is the only change from the original. By launching the
-                    # next Telegram GetFile request as a background task before we
-                    # yield the current chunk, the network round-trip to Telegram
-                    # overlaps with the time spent writing data to the browser.
-                    # Result: no idle gap between chunks → far less buffering.
-                    next_fetch = None
-                    if current_part < part_count:
-                        next_fetch = asyncio.create_task(
-                            media_session.send(
-                                raw.functions.upload.GetFile(
-                                    location=location,
-                                    offset=offset + chunk_size,
-                                    limit=chunk_size,
-                                )
-                            )
-                        )
-                    # ─────────────────────────────────────────────────────────────
+        try:
+            fill_offset = offset
+            for _ in range(min(PIPELINE_SIZE, part_count)):
+                pending.append((fill_offset, _fetch(fill_offset)))
+                fill_offset += chunk_size
 
-                    # Original yield logic — unchanged
-                    if part_count == 1:
-                        yield chunk[first_part_cut:last_part_cut]
-                    elif current_part == 1:
-                        yield chunk[first_part_cut:]
-                    elif current_part == part_count:
-                        yield chunk[:last_part_cut]
-                    else:
-                        yield chunk
+            while pending:
+                part_offset, task = pending.popleft()
+                r = await task
 
-                    current_part += 1
-                    offset += chunk_size
+                if not isinstance(r, raw.types.upload.File) or not r.bytes:
+                    break
 
-                    if current_part > part_count:
-                        if next_fetch and not next_fetch.done():
-                            next_fetch.cancel()
-                        break
+                chunk = r.bytes
 
-                    # Await the already-in-flight request (replaces the original
-                    # blocking send call that came here in the original code)
-                    r = await next_fetch
+                # Refill pipeline slot
+                if current_part + len(pending) < part_count:
+                    pending.append((fill_offset, _fetch(fill_offset)))
+                    fill_offset += chunk_size
+
+                if part_count == 1:
+                    yield chunk[first_part_cut:last_part_cut]
+                elif current_part == 1:
+                    yield chunk[first_part_cut:]
+                elif current_part == part_count:
+                    yield chunk[:last_part_cut]
+                else:
+                    yield chunk
+
+                current_part += 1
 
         except (TimeoutError, AttributeError):
             pass
         finally:
+            for _, task in pending:
+                if not task.done():
+                    task.cancel()
             logging.debug("Finished yielding file with {current_part} parts.")
             work_loads[index] -= 1
 
