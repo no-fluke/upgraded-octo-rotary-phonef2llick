@@ -6,7 +6,7 @@ A Telegram bot that generates streaming/download links for files stored in a pri
 
 ## 🚀 One-Click Deploy to Heroku
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/no-fluke/scaling-octo-winnerf2l)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/no-fluke/upgraded-octo-rotary-phonef2llick)
 
 > **Replace** `YOUR_USERNAME/YOUR_REPO` in the button URL above with your actual GitHub repo path before pushing.
 
