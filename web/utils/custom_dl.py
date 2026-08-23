@@ -195,21 +195,30 @@ class ByteStreamer:
 
         pending: deque = deque()
 
-        def _fetch(part_offset: int):
-            return asyncio.create_task(
-                media_session.send(
-                    raw.functions.upload.GetFile(
-                        location=location,
-                        offset=part_offset,
-                        limit=chunk_size,
+        async def _fetch_with_retry(part_offset: int, retries: int = 3):
+            from pyrogram.errors import FloodWait
+            for attempt in range(retries):
+                try:
+                    return await media_session.send(
+                        raw.functions.upload.GetFile(
+                            location=location,
+                            offset=part_offset,
+                            limit=chunk_size,
+                        )
                     )
-                )
-            )
+                except FloodWait as e:
+                    wait = e.value + 1
+                    logging.warning(f"FloodWait: sleeping {wait}s (attempt {attempt+1})")
+                    await asyncio.sleep(wait)
+                except (TimeoutError, asyncio.TimeoutError):
+                    if attempt == retries - 1:
+                        raise
+                    await asyncio.sleep(1 * (attempt + 1))  # 1s, 2s backoff
 
         try:
             fill_offset = offset
             for _ in range(min(PIPELINE_SIZE, part_count)):
-                pending.append((fill_offset, _fetch(fill_offset)))
+                pending.append((fill_offset, asyncio.create_task(_fetch_with_retry(fill_offset))))
                 fill_offset += chunk_size
 
             while pending:
@@ -223,7 +232,7 @@ class ByteStreamer:
 
                 # Refill pipeline slot
                 if current_part + len(pending) < part_count:
-                    pending.append((fill_offset, _fetch(fill_offset)))
+                    pending.append((fill_offset, asyncio.create_task(_fetch_with_retry(fill_offset))))
                     fill_offset += chunk_size
 
                 if part_count == 1:
@@ -237,8 +246,8 @@ class ByteStreamer:
 
                 current_part += 1
 
-        except (TimeoutError, AttributeError):
-            pass
+        except (TimeoutError, asyncio.TimeoutError, AttributeError):
+            logging.warning(f"Stream aborted for part {current_part} after retries exhausted.")
         finally:
             for _, task in pending:
                 if not task.done():
