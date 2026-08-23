@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: filetolinkrx-bot
+    env: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: Dockerfile
+    # ✅ Health check path so Render confirms the server is alive
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 2626

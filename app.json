@@ -1,0 +1,143 @@
+{
+  "name": "RexBots File-to-Link Bot",
+  "description": "Telegram File-to-Link streaming bot with web server. Deploy and configure via environment variables.",
+  "logo": "https://i.imgur.com/your-logo.png",
+  "keywords": [
+    "telegram",
+    "bot",
+    "python",
+    "pyrogram",
+    "file-to-link"
+  ],
+  "repository": "https://github.com/YOUR_USERNAME/YOUR_REPO",
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "API_ID": {
+      "description": "Your Telegram API ID from https://my.telegram.org",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Your Telegram API Hash from https://my.telegram.org",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Your bot token from @BotFather",
+      "required": true
+    },
+    "ADMINS": {
+      "description": "Space-separated Telegram user IDs of admins (e.g. 123456789)",
+      "required": true
+    },
+    "BIN_CHANNEL": {
+      "description": "Telegram channel ID where files are stored (e.g. -1001234567890). Bot must be admin.",
+      "required": true
+    },
+    "LOG_CHANNEL": {
+      "description": "Telegram channel ID for bot logs (e.g. -1009876543210). Bot must be admin.",
+      "required": true
+    },
+    "DATABASE_URI": {
+      "description": "MongoDB connection string (e.g. mongodb+srv://user:pass@cluster.mongodb.net/)",
+      "required": true
+    },
+    "DATABASE_NAME": {
+      "description": "MongoDB database name",
+      "value": "rexlinkbot",
+      "required": false
+    },
+    "BOT_USERNAME": {
+      "description": "Your bot's username WITHOUT the @ symbol",
+      "required": true
+    },
+    "WEB_SERVER_BIND_ADDRESS": {
+      "description": "Your Heroku app hostname (e.g. myapp.herokuapp.com). Used to build stream link URLs. Set this to your app name + .herokuapp.com if not using a custom domain.",
+      "required": false
+    },
+    "HAS_SSL": {
+      "description": "Set to true if your domain uses HTTPS (recommended, especially with Cloudflare)",
+      "value": "true",
+      "required": false
+    },
+    "NO_PORT": {
+      "description": "Set to true when using Cloudflare or any proxy (no port needed in URL)",
+      "value": "true",
+      "required": false
+    },
+    "APP_NAME": {
+      "description": "Your Heroku app name (e.g. my-rexbot). Used for self-ping to prevent sleeping. Auto-set if left blank.",
+      "required": false
+    },
+    "SUPPORT_GROUP": {
+      "description": "Telegram group ID for support notifications",
+      "value": "0",
+      "required": false
+    },
+    "PREMIUM_LOGS": {
+      "description": "Telegram channel ID for premium user logs",
+      "value": "0",
+      "required": false
+    },
+    "VERIFIED_LOG": {
+      "description": "Telegram channel ID for verification logs",
+      "value": "0",
+      "required": false
+    },
+    "AUTH_CHANNEL": {
+      "description": "Space-separated channel IDs for force-subscribe (leave blank to disable)",
+      "required": false
+    },
+    "CHANNEL": {
+      "description": "Your Telegram channel link (e.g. https://t.me/yourchannel)",
+      "value": "https://t.me/RexBots_Official",
+      "required": false
+    },
+    "SUPPORT": {
+      "description": "Your Telegram support group link",
+      "value": "https://t.me/RexBots_Official",
+      "required": false
+    },
+    "FSUB": {
+      "description": "Enable force-subscribe? (true/false)",
+      "value": "true",
+      "required": false
+    },
+    "PROTECT_CONTENT": {
+      "description": "Prevent users from forwarding bot messages? (true/false)",
+      "value": "false",
+      "required": false
+    },
+    "PUBLIC_FILE_STORE": {
+      "description": "Allow public file storage? (true/false)",
+      "value": "true",
+      "required": false
+    },
+    "MAX_FILES": {
+      "description": "Maximum files per rate-limit window",
+      "value": "50",
+      "required": false
+    },
+    "PING_INTERVAL": {
+      "description": "Seconds between self-pings to prevent Heroku sleep (1200 = 20 mins)",
+      "value": "1200",
+      "required": false
+    },
+    "SLEEP_THRESHOLD": {
+      "description": "Pyrogram sleep threshold in seconds",
+      "value": "60",
+      "required": false
+    },
+    "WORKERS": {
+      "description": "Number of async workers",
+      "value": "10",
+      "required": false
+    }
+  },
+  "buildpacks": [],
+  "addons": []
+}

@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ template_ne }} | {{ file_name }}</title>
+  <link rel="icon" href="https://telegra.ph/file/5a53e66bb148003666d62.jpg" type="image/x-icon">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.6.12/plyr.css" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --primary-color: #00f0ff;
+      --secondary-color: #7000ff;
+      --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      --glass-bg: rgba(255, 255, 255, 0.05);
+      --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+      --card-radius: 16px;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f0c29; }
+    ::-webkit-scrollbar-thumb { background: var(--secondary-color); border-radius: 4px; }
+
+    .navbar {
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .navbar-brand {
+      color: var(--primary-color) !important;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .player-wrapper {
+      background: #000;
+      border-radius: var(--card-radius);
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin-top: 20px;
+      border: var(--glass-border);
+      position: relative;
+      user-select: none;
+    }
+
+    .plyr--video .plyr__control--overlaid,
+    .plyr--video .plyr__control:hover { background: var(--secondary-color); }
+    .plyr--full-ui input[type=range]  { color: var(--primary-color); }
+
+    /* Plyr container must be relative for absolute children */
+    .plyr {
+      position: relative !important;
+    }
+
+    /* Ensure Plyr settings menus appear above gesture overlay */
+    .plyr__menu__container {
+      z-index: 1000 !important;
+    }
+
+    /* Gesture overlay – sits above video but below controls */
+    #gestureOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 48px;   /* will be updated by JS */
+      z-index: 10;
+      display: flex;
+      touch-action: none;
+      pointer-events: all;
+      transition: pointer-events 0.1s;
+    }
+    #gestureOverlay.disabled {
+      pointer-events: none;
+    }
+    #gesturLeft, #gesturRight { flex: 1; height: 100%; }
+
+    /* Vertical slider bars (brightness / volume) */
+    .v-slider {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .v-slider.left  { left: 12px; }
+    .v-slider.right { right: 12px; }
+    .v-slider.visible { opacity: 1; }
+
+    .v-slider-icon {
+      font-size: 0.9rem;
+      color: var(--primary-color);
+    }
+
+    .v-slider-track {
+      width: 5px;
+      height: 110px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .v-slider-fill {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%;
+      background: var(--primary-color);
+      border-radius: 10px;
+      transition: height 0.06s linear;
+      box-shadow: 0 0 6px var(--primary-color);
+    }
+    .v-slider-val {
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0,0,0,0.6);
+      border-radius: 6px;
+      padding: 2px 5px;
+      min-width: 34px;
+      text-align: center;
+    }
+
+    /* Seek HUD (centre) */
+    #hudSeek {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 25;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      min-width: 72px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    #hudSeek.visible { opacity: 1; }
+    #hudSeek .seek-icon  { font-size: 1.3rem; color: var(--primary-color); }
+    #hudSeek .seek-val   { font-size: 0.82rem; font-weight: 700; color: #fff; }
+
+    /* Visual skip zones (ripple only) */
+    .skip-zone {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 33%;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .skip-zone.left-zone  { left: 0; }
+    .skip-zone.right-zone { right: 0; }
+
+    .skip-ripple {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      opacity: 0;
+      transform: scale(0.65);
+      transition: opacity 0.14s ease, transform 0.14s ease;
+    }
+    .skip-ripple.pop {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .skip-ripple i {
+      font-size: 2.2rem;
+      color: rgba(255,255,255,0.92);
+      filter: drop-shadow(0 0 10px rgba(0,240,255,0.7));
+    }
+    .skip-ripple span {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    }
+
+    /* Tap ripple circle */
+    @keyframes rippleCircle {
+      0%   { transform: scale(0.2); opacity: 0.5; }
+      100% { transform: scale(2.8); opacity: 0; }
+    }
+    .tap-circle {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(0,240,255,0.2);
+      pointer-events: none;
+      z-index: 30;
+      animation: rippleCircle 0.5s ease-out forwards;
+    }
+
+    /* Buttons etc. unchanged */
+    .btn-custom {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+    }
+    .btn-custom:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      filter: brightness(1.2);
+    }
+    .btn-mx       { background: linear-gradient(45deg, #2980b9, #2c3e50); color: white; }
+    .btn-vlc      { background: linear-gradient(45deg, #e67e22, #d35400); color: white; }
+    .btn-playit   { background: linear-gradient(45deg, #8e44ad, #9b59b6); color: white; }
+    .btn-download { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; font-weight: 600; width: 100%; }
+    .btn-telegram { background: linear-gradient(45deg, #0088cc, #36aee2); color: white; width: 100%; }
+    .btn-share    { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #aaa; width: 100%; }
+    .btn-share:hover { background: rgba(255,255,255,0.1); color: white; }
+
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: var(--glass-border);
+      border-radius: var(--card-radius);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .file-info-title {
+      color: var(--primary-color);
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 10px;
+    }
+    .info-item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .info-label { color: #888; }
+    .info-value { color: #fff; font-family: monospace; }
+
+    footer {
+      margin-top: auto;
+      background: rgba(0,0,0,0.4);
+      padding: 15px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #666;
+    }
+    footer a { color: var(--primary-color); text-decoration: none; }
+
+    @keyframes fadeIn {
+      from { opacity:0; transform: translateY(10px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    main { animation: fadeIn 0.8s ease-out; }
+
+    .watermark {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      opacity: 0.2; color: #fff;
+      font-size: 3rem; font-weight: 800;
+      z-index: 99999; pointer-events: none;
+      user-select: none; transform: rotate(-15deg);
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar navbar-dark">
+    <div class="container">
+      <span class="navbar-brand mb-0 h1">
+        <i class="fa-solid fa-robot me-2"></i>{{ template_ne }}
+      </span>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+
+    <div class="player-wrapper mb-3" id="playerWrapper">
+      <!--
+        ✅ FIX 1: Added preload="auto" — tells the browser to start buffering
+        the video immediately on page load, not wait for the user to press play.
+        ✅ FIX 2: Added crossorigin="anonymous" for proper CORS handling.
+      -->
+      <video id="myVideo" src="{{file_url}}" class="w-100" controls preload="auto" crossorigin="anonymous">
+        Your browser does not support the video tag.
+      </video>
+
+      <!-- All interactive UI elements are moved inside .plyr dynamically -->
+      <div id="gestureOverlay">
+        <div id="gesturLeft"></div>
+        <div id="gesturRight"></div>
+      </div>
+      <div class="v-slider left" id="vsBrightness">
+        <i class="fa-solid fa-sun v-slider-icon"></i>
+        <div class="v-slider-track"><div class="v-slider-fill" id="vsBrightnessBar" style="height:50%"></div></div>
+        <div class="v-slider-val" id="vsBrightnessVal">100%</div>
+      </div>
+      <div class="v-slider right" id="vsVolume">
+        <i class="fa-solid fa-volume-high v-slider-icon" id="vsVolumeIcon"></i>
+        <div class="v-slider-track"><div class="v-slider-fill" id="vsVolumeBar" style="height:100%"></div></div>
+        <div class="v-slider-val" id="vsVolumeVal">100%</div>
+      </div>
+      <div id="hudSeek">
+        <i class="fa-solid fa-forward seek-icon" id="hudSeekIcon"></i>
+        <div class="seek-val" id="hudSeekVal">+10s</div>
+      </div>
+      <div class="skip-zone left-zone"><div class="skip-ripple" id="skipRippleLeft"><i class="fa-solid fa-rotate-left"></i><span id="skipLabelLeft">-10s</span></div></div>
+      <div class="skip-zone right-zone"><div class="skip-ripple" id="skipRippleRight"><i class="fa-solid fa-rotate-right"></i><span id="skipLabelRight">+10s</span></div></div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a onclick="mx_player()"     class="btn btn-custom btn-mx flex-fill"><i class="fa fa-play"></i> MX Player</a>
+      <a onclick="vlc_player()"    class="btn btn-custom btn-vlc flex-fill"><i class="fa fa-play"></i> VLC Player</a>
+      <a onclick="playit_player()" class="btn btn-custom btn-playit flex-fill"><i class="fa fa-play"></i> PlayIt</a>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><a onclick="streamDownload()" class="btn btn-custom btn-download"><i class="fa-solid fa-cloud-arrow-down"></i> &nbsp; Direct Download</a></div>
+      <div class="col-md-6"><a onclick="showLinkModal('{{tg_button}}')" class="btn btn-custom btn-telegram"><i class="fa-brands fa-telegram"></i> &nbsp; Get File in Telegram</a></div>
+    </div>
+
+    <div class="glass-card">
+      <div class="file-info-title"><i class="fa-solid fa-circle-info me-2"></i> File Details</div>
+      <div class="info-item"><span class="info-label">Filename</span><span class="info-value">{{file_name}}</span></div>
+      <div class="info-item"><span class="info-label">Size</span><span class="info-value">{{file_size}}</span></div>
+    </div>
+
+    <button onclick="shareButton()" class="btn btn-custom btn-share"><i class="fa-solid fa-share-nodes"></i> &nbsp; Share with Friends</button>
+
+    <div class="mt-4 text-center" style="font-size:0.75rem;color:#555;">
+      {{ disclaimer }}<br>
+      <a href="{{ report_link }}" style="color:#666;">Report Issue</a>
+    </div>
+  </main>
+
+  <footer><p>&copy; 2025 {{ template_ne }}. All rights reserved.</p></footer>
+
+  <script src="https://cdn.plyr.io/3.6.12/plyr.js"></script>
+  <script>
+    // ========== PLYR INIT + FULLSCREEN FIX ==========
+    let player;
+    const video = document.getElementById('myVideo');
+    const wrapper = document.getElementById('playerWrapper');
+    const gestureOverlay = document.getElementById('gestureOverlay');
+    const vsBright = document.getElementById('vsBrightness');
+    const vsVol = document.getElementById('vsVolume');
+    const hudSeek = document.getElementById('hudSeek');
+    const skipLeftZone = document.querySelector('.skip-zone.left-zone');
+    const skipRightZone = document.querySelector('.skip-zone.right-zone');
+
+    function moveElementsToPlyrContainer() {
+      const plyrContainer = document.querySelector('.plyr');
+      if (!plyrContainer) return false;
+      plyrContainer.style.position = 'relative';
+      [gestureOverlay, vsBright, vsVol, hudSeek, skipLeftZone, skipRightZone].forEach(el => {
+        if (el && el.parentNode !== plyrContainer) plyrContainer.appendChild(el);
+      });
+      return true;
+    }
+
+    function updateOverlayBottom() {
+      const controls = document.querySelector('.plyr__controls');
+      if (controls) {
+        let h = controls.offsetHeight;
+        if (h === 0) h = 48;
+        gestureOverlay.style.bottom = h + 'px';
+      } else {
+        gestureOverlay.style.bottom = '48px';
+      }
+    }
+
+    // ResizeObserver to catch control bar height changes
+    let controlObserver;
+    function observeControls() {
+      const controls = document.querySelector('.plyr__controls');
+      if (controls && window.ResizeObserver) {
+        if (controlObserver) controlObserver.disconnect();
+        controlObserver = new ResizeObserver(() => updateOverlayBottom());
+        controlObserver.observe(controls);
+      }
+    }
+
+    // Disable gesture overlay when settings menu is open, re-enable when closed
+    function setupSettingsMenuDetection() {
+      const plyrContainer = document.querySelector('.plyr');
+      if (!plyrContainer) return;
+
+      const settingsButton = plyrContainer.querySelector('[data-plyr="settings"]');
+      if (settingsButton) {
+        settingsButton.addEventListener('click', () => {
+          setTimeout(() => {
+            const menu = document.querySelector('.plyr__menu__container');
+            if (menu && menu.style.display !== 'none') {
+              gestureOverlay.classList.add('disabled');
+            }
+          }, 50);
+        });
+      }
+
+      const observer = new MutationObserver((mutations) => {
+        for (let mutation of mutations) {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+            const menu = mutation.target;
+            if (menu.style.display === 'none' || menu.style.visibility === 'hidden' || !menu.offsetParent) {
+              gestureOverlay.classList.remove('disabled');
+            } else {
+              gestureOverlay.classList.add('disabled');
+            }
+          }
+        }
+      });
+
+      const menuContainer = document.querySelector('.plyr__menu__container');
+      if (menuContainer) {
+        observer.observe(menuContainer, { attributes: true, attributeFilter: ['style', 'class'] });
+      } else {
+        const waitForMenu = setInterval(() => {
+          const menu = document.querySelector('.plyr__menu__container');
+          if (menu) {
+            observer.observe(menu, { attributes: true, attributeFilter: ['style', 'class'] });
+            clearInterval(waitForMenu);
+          }
+        }, 200);
+      }
+
+      document.addEventListener('fullscreenchange', () => {
+        const menu = document.querySelector('.plyr__menu__container');
+        if (menu && menu.style.display !== 'none' && menu.offsetParent) {
+          gestureOverlay.classList.add('disabled');
+        } else {
+          gestureOverlay.classList.remove('disabled');
+        }
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      /*
+       * ✅ FIX 3: Added ratio: '16:9' — prevents layout shift when video
+       *    metadata loads, which was causing seek/buffer resets in some browsers.
+       * ✅ FIX 4: Added invertTime: false — cleaner UX for long videos.
+       */
+      player = new Plyr("#myVideo", {
+        controls: ['play-large','play','progress','current-time','mute','volume','captions','settings','pip','airplay','fullscreen'],
+        settings: ['captions','quality','speed'],
+        ratio: '16:9',
+        invertTime: false,
+      });
+
+      setTimeout(() => {
+        if (moveElementsToPlyrContainer()) {
+          updateOverlayBottom();
+          observeControls();
+          setupSettingsMenuDetection();
+        }
+        player.on('fullscreenchange', () => setTimeout(updateOverlayBottom, 100));
+        window.addEventListener('resize', () => setTimeout(updateOverlayBottom, 50));
+        document.addEventListener('fullscreenchange', () => setTimeout(updateOverlayBottom, 100));
+      }, 300);
+    });
+
+    // ========== ELEMENT REFS ==========
+    const vsBrightBar = document.getElementById('vsBrightnessBar');
+    const vsBrightVal = document.getElementById('vsBrightnessVal');
+    const vsVolBar = document.getElementById('vsVolumeBar');
+    const vsVolVal = document.getElementById('vsVolumeVal');
+    const vsVolIcon = document.getElementById('vsVolumeIcon');
+    const hudSeekIcon = document.getElementById('hudSeekIcon');
+    const hudSeekVal = document.getElementById('hudSeekVal');
+    const rippleLeft = document.getElementById('skipRippleLeft');
+    const rippleRight = document.getElementById('skipRippleRight');
+    const skipLblLeft = document.getElementById('skipLabelLeft');
+    const skipLblRight = document.getElementById('skipLabelRight');
+
+    // ========== STATE ==========
+    let brightness = 1.0;   // 0.1 – 2.0
+    let volLevel = 1.0;     // 0 – 1
+    let hudTimers = {};
+
+    // ========== UI HELPERS ==========
+    function showEl(el, ms) {
+      el.classList.add('visible');
+      clearTimeout(hudTimers[el.id]);
+      hudTimers[el.id] = setTimeout(() => el.classList.remove('visible'), ms || 1400);
+    }
+
+    function updateBrightness() {
+      const pct = Math.round(((brightness - 0.1) / 1.9) * 100);
+      vsBrightBar.style.height = pct + '%';
+      vsBrightVal.textContent = Math.round(brightness * 100) + '%';
+      video.style.filter = `brightness(${brightness})`;
+      showEl(vsBright, 1400);
+    }
+
+    function updateVolume() {
+      const pct = Math.round(volLevel * 100);
+      vsVolBar.style.height = pct + '%';
+      vsVolVal.textContent = pct + '%';
+      vsVolIcon.className = volLevel === 0 ? 'fa-solid fa-volume-xmark v-slider-icon' :
+                           (volLevel < 0.5 ? 'fa-solid fa-volume-low v-slider-icon' : 'fa-solid fa-volume-high v-slider-icon');
+      video.volume = volLevel;
+      showEl(vsVol, 1400);
+    }
+
+    function showSeekHud(secs) {
+      const fwd = secs >= 0;
+      hudSeekIcon.className = fwd ? 'fa-solid fa-forward seek-icon' : 'fa-solid fa-backward seek-icon';
+      hudSeekVal.textContent = (fwd ? '+' : '') + Math.round(secs) + 's';
+      showEl(hudSeek, 800);
+    }
+
+    function flashRipple(ripple) {
+      ripple.classList.remove('pop');
+      void ripple.offsetWidth;
+      ripple.classList.add('pop');
+      clearTimeout(hudTimers[ripple.id]);
+      hudTimers[ripple.id] = setTimeout(() => ripple.classList.remove('pop'), 700);
+    }
+
+    // ========== DOUBLE‑TAP SEEK ACCUMULATOR ==========
+    let leftAccum = 0, rightAccum = 0;
+    let leftCommitTimer = null, rightCommitTimer = null;
+
+    function commitLeft() {
+      if (leftAccum !== 0 && !isNaN(video.duration)) {
+        video.currentTime = Math.max(0, video.currentTime + leftAccum);
+        leftAccum = 0;
+        skipLblLeft.textContent = '-10s';
+      }
+      if (leftCommitTimer) clearTimeout(leftCommitTimer);
+      leftCommitTimer = null;
+    }
+
+    function commitRight() {
+      if (rightAccum !== 0 && !isNaN(video.duration)) {
+        video.currentTime = Math.min(video.duration, video.currentTime + rightAccum);
+        rightAccum = 0;
+        skipLblRight.textContent = '+10s';
+      }
+      if (rightCommitTimer) clearTimeout(rightCommitTimer);
+      rightCommitTimer = null;
+    }
+
+    function accumulateSkip(side, delta) {
+      if (side === 'left') {
+        leftAccum += delta;
+        skipLblLeft.textContent = leftAccum + 's';
+        flashRipple(rippleLeft);
+        showSeekHud(leftAccum);
+        if (leftCommitTimer) clearTimeout(leftCommitTimer);
+        leftCommitTimer = setTimeout(commitLeft, 600);
+      } else {
+        rightAccum += delta;
+        skipLblRight.textContent = '+' + rightAccum + 's';
+        flashRipple(rippleRight);
+        showSeekHud(rightAccum);
+        if (rightCommitTimer) clearTimeout(rightCommitTimer);
+        rightCommitTimer = setTimeout(commitRight, 600);
+      }
+    }
+
+    // ========== TAP / DOUBLE-TAP LOGIC ==========
+    const DOUBLE_TAP_DELAY = 280;
+    let lastTap = { side: null, time: 0, pendingSingle: null };
+
+    function handleTap(side, clientX, clientY, event) {
+      const now = Date.now();
+      if (lastTap.side === side && (now - lastTap.time) < DOUBLE_TAP_DELAY) {
+        if (lastTap.pendingSingle) {
+          clearTimeout(lastTap.pendingSingle);
+          lastTap.pendingSingle = null;
+        }
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        if (side === 'left') accumulateSkip('left', -10);
+        else if (side === 'right') accumulateSkip('right', +10);
+        else {
+          video.paused ? video.play() : video.pause();
+          spawnTapCircle(clientX, clientY);
+        }
+        lastTap = { side: null, time: 0, pendingSingle: null };
+        return;
+      }
+
+      if (lastTap.pendingSingle) clearTimeout(lastTap.pendingSingle);
+      lastTap = { side: side, time: now, pendingSingle: setTimeout(() => {
+        if (side === 'left') {
+          clearTimeout(hudTimers['vsBrightness']);
+          vsBright.classList.add('visible');
+          hudTimers['vsBrightness'] = setTimeout(() => vsBright.classList.remove('visible'), 1000);
+        } else if (side === 'right') {
+          clearTimeout(hudTimers['vsVolume']);
+          vsVol.classList.add('visible');
+          hudTimers['vsVolume'] = setTimeout(() => vsVol.classList.remove('visible'), 1000);
+        } else {
+          video.paused ? video.play() : video.pause();
+          spawnTapCircle(clientX, clientY);
+        }
+        lastTap = { side: null, time: 0, pendingSingle: null };
+      }, DOUBLE_TAP_DELAY) };
+    }
+
+    function spawnTapCircle(clientX, clientY) {
+      const plyrContainer = document.querySelector('.plyr');
+      if (!plyrContainer) return;
+      const rect = plyrContainer.getBoundingClientRect();
+      const c = document.createElement('div');
+      c.className = 'tap-circle';
+      c.style.left = (clientX - rect.left - 30) + 'px';
+      c.style.top = (clientY - rect.top - 30) + 'px';
+      plyrContainer.appendChild(c);
+      setTimeout(() => c.remove(), 600);
+    }
+
+    // ========== GESTURE HANDLERS (touch + mouse) ==========
+    const SWIPE_MIN = 12;
+    const BRIGHT_SENS = 0.007;
+    const VOL_SENS = 0.007;
+    const SEEK_SENS = 0.25;
+
+    let ts = { active: false, side: null, dir: null, startX: 0, startY: 0, lastX: 0, lastY: 0, seekStart: 0, moved: false };
+    const overlay = gestureOverlay;
+
+    overlay.addEventListener('touchstart', (e) => {
+      if (gestureOverlay.classList.contains('disabled')) return;
+      const t = e.touches[0];
+      const rect = overlay.getBoundingClientRect();
+      ts = {
+        active: true,
+        side: (t.clientX - rect.left) < rect.width / 2 ? 'left' : 'right',
+        dir: null,
+        startX: t.clientX, startY: t.clientY,
+        lastX: t.clientX, lastY: t.clientY,
+        seekStart: isNaN(video.currentTime) ? 0 : video.currentTime,
+        moved: false,
+      };
+    }, { passive: true });
+
+    overlay.addEventListener('touchmove', (e) => {
+      if (!ts.active || gestureOverlay.classList.contains('disabled')) return;
+      const t = e.touches[0];
+      const dx = t.clientX - ts.startX;
+      const dy = t.clientY - ts.startY;
+      if (!ts.dir) {
+        if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) return;
+        ts.dir = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+        ts.moved = true;
+      }
+      if (ts.dir === 'vertical') {
+        const delta = -(t.clientY - ts.lastY);
+        if (ts.side === 'left') {
+          brightness = Math.min(2.0, Math.max(0.1, brightness + delta * BRIGHT_SENS));
+          updateBrightness();
+        } else {
+          volLevel = Math.min(1.0, Math.max(0, volLevel + delta * VOL_SENS));
+          updateVolume();
+        }
+        e.preventDefault();
+      } else {
+        if (!isNaN(video.duration)) {
+          const newTime = ts.seekStart + dx * SEEK_SENS;
+          video.currentTime = Math.min(video.duration, Math.max(0, newTime));
+          showSeekHud(dx * SEEK_SENS);
+        }
+        e.preventDefault();
+      }
+      ts.lastX = t.clientX;
+      ts.lastY = t.clientY;
+    }, { passive: false });
+
+    overlay.addEventListener('touchend', (e) => {
+      if (!ts.moved && !gestureOverlay.classList.contains('disabled')) {
+        const t = e.changedTouches[0];
+        const rect = overlay.getBoundingClientRect();
+        const relX = t.clientX - rect.left;
+        let zone = relX < rect.width / 3 ? 'left' : (relX > rect.width * 2 / 3 ? 'right' : 'center');
+        if (zone === 'center') spawnTapCircle(t.clientX, t.clientY);
+        handleTap(zone, t.clientX, t.clientY, e);
+      }
+      ts.active = false;
+    });
+
+    // Mouse gestures
+    let ms = { down: false, side: null, dir: null, startX: 0, startY: 0, lastX: 0, lastY: 0, seekStart: 0, moved: false };
+    overlay.addEventListener('mousedown', (e) => {
+      if (gestureOverlay.classList.contains('disabled')) return;
+      e.preventDefault();
+      const rect = overlay.getBoundingClientRect();
+      ms = {
+        down: true,
+        side: (e.clientX - rect.left) < rect.width / 2 ? 'left' : 'right',
+        dir: null,
+        startX: e.clientX, startY: e.clientY,
+        lastX: e.clientX, lastY: e.clientY,
+        seekStart: isNaN(video.currentTime) ? 0 : video.currentTime,
+        moved: false,
+      };
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!ms.down || gestureOverlay.classList.contains('disabled')) return;
+      const dx = e.clientX - ms.startX;
+      const dy = e.clientY - ms.startY;
+      if (!ms.dir) {
+        if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) return;
+        ms.dir = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+        ms.moved = true;
+      }
+      if (ms.dir === 'vertical') {
+        const delta = -(e.clientY - ms.lastY);
+        if (ms.side === 'left') {
+          brightness = Math.min(2.0, Math.max(0.1, brightness + delta * BRIGHT_SENS));
+          updateBrightness();
+        } else {
+          volLevel = Math.min(1.0, Math.max(0, volLevel + delta * VOL_SENS));
+          updateVolume();
+        }
+      } else {
+        if (!isNaN(video.duration)) {
+          const newTime = ms.seekStart + dx * SEEK_SENS;
+          video.currentTime = Math.min(video.duration, Math.max(0, newTime));
+          showSeekHud(dx * SEEK_SENS);
+        }
+      }
+      ms.lastX = e.clientX;
+      ms.lastY = e.clientY;
+    });
+    overlay.addEventListener('mouseup', (e) => {
+      if (!ms.moved && !gestureOverlay.classList.contains('disabled')) {
+        const rect = overlay.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        let zone = relX < rect.width / 3 ? 'left' : (relX > rect.width * 2 / 3 ? 'right' : 'center');
+        if (zone === 'center') spawnTapCircle(e.clientX, e.clientY);
+        handleTap(zone, e.clientX, e.clientY, e);
+      }
+      ms.down = false;
+    });
+    window.addEventListener('mouseup', () => { ms.down = false; });
+
+    // ========== EXTERNAL FUNCTIONS ==========
+    function mx_player() { let c = "{{ file_url }}".replace(/^https?:\/\//, ''); window.location.href = `intent://${c}#Intent;package=com.mxtech.videoplayer.ad;type=video/*;scheme=https;end`; }
+    function vlc_player() { let c = "{{ file_url }}".replace(/^https?:\/\//, ''); window.location.href = `intent://${c}#Intent;package=org.videolan.vlc;type=video/*;scheme=https;end`; }
+    function playit_player() { let c = "{{ file_url }}".replace(/^https?:\/\//, ''); window.location.href = `intent://${c}#Intent;package=com.playit.videoplayer;type=video/*;scheme=https;end`; }
+    function streamDownload() { window.location.href = "{{ file_url }}"; }
+    function showLinkModal(url) { if (url) window.open(url, "_blank"); }
+    function shareButton() { if (navigator.share) navigator.share({ title:'{{ file_name }}', text:"Watch on {{ template_ne }}", url: window.location.href }); else { navigator.clipboard.writeText(window.location.href); alert("Link copied!"); } }
+  </script>
+
+  <div class="watermark">RexBots</div>
+</body>
+</html>
