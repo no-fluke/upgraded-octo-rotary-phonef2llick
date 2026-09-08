@@ -1,4 +1,4 @@
-FROM python:3.10.14-slim-bullseye
+FROM python:3.10-slim-bookworm
 
 RUN apt update && apt upgrade -y && apt install git -y && rm -rf /var/lib/apt/lists/*
 
