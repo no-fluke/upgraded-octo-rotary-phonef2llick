@@ -189,7 +189,7 @@ class ByteStreamer:
         # Telegram's DC. Chunks are drained in order so the byte stream stays
         # correct. Telegram's MTProto supports up to 512 concurrent requests;
         # 8 is aggressive but well within limits for a single download.
-        PIPELINE_SIZE = 4
+        PIPELINE_SIZE = 16
         # ─────────────────────────────────────────────────────────────────────
         from collections import deque
 
